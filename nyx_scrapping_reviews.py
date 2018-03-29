@@ -1,7 +1,7 @@
 
 # coding: utf-8
 
-# In[37]:
+# In[45]:
 
 import urllib, json, pandas
 from bson import ObjectId
@@ -16,18 +16,18 @@ class JSONEncoder(json.JSONEncoder):
         return json.JSONEncoder.default(self, o)
 
 
-# In[38]:
+# In[47]:
 
 import pymongo
 client = pymongo.MongoClient("localhost", 27017)
 db = client.revlon
 print("inserting into db, " + db.name)
 
-products = list(db.nyx_products.find({}))
+products = list(db.nyx_products.find({"fetch_status": 0}))
 # products = products[0:2]
 print("fetching " + str(len(products)) + " products")
 
-DATA_PATH = "D:\\Data\\Dinesh\\Work\\revlon\\nyx_data_final"
+DATA_PATH = "D:\\Data\\Dinesh\\Work\\revlon\\nyx_data_final1"
 
 MASTER_URL = '''
 https://api.bazaarvoice.com/data/batch.json?
@@ -59,6 +59,18 @@ for product in products:
         print("fetching product id: " + str(product["product_id_from_site"]))
         response = urllib.request.urlopen(MASTER_URL.format(product["product_id_from_site"])).read()
         reviews = json.loads(response.decode("utf-8")[14:-1])["BatchedResults"]["q0"]["Results"]
+        product_info = json.loads(response.decode("utf-8")[14:-1])["BatchedResults"]["q0"]["Includes"]["Products"][str(product["product_id_from_site"])]
+        authors_info = json.loads(response.decode("utf-8")[14:-1])["BatchedResults"]["q0"]["Includes"]["Authors"]
+        product_info_needed = {
+            "category_id": product_info["CategoryId"],
+            "product_name": product_info["Name"],
+            "description": product_info["Description"],
+            "category_name": product["category_name"],
+            "product_id": product_info["Id"]
+        }
+        for review in reviews:
+            review.update(product_info_needed)
+            review["AuthorName"] = authors_info[review["AuthorId"]]["UserNickname"]
         try: 
             reviews_insert = db.nyx_reviews.insert_many(reviews)
             if(len(reviews_insert.inserted_ids) == len(reviews)):
